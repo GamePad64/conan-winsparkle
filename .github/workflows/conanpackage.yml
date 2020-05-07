@@ -14,8 +14,8 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        build_type: [Release, Debug]
-        compiler_runtime: [MD, MT]
+        build_type: [Debug, Release, RelWithDebInfo, MinSizeRel]
+        compiler_runtime: [MD, MDd, MT, MTd]
         arch: [x86, x86_64]
     steps:
     - uses: actions/checkout@v2
