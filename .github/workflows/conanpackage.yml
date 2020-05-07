@@ -37,4 +37,5 @@ jobs:
         conan create --build missing --build cascade . gamepad64/stable
     - name: Upload package to Bintray
       run: |
+        conan user -p ${{ secrets.BINTRAY_API_KEY }} -r gamepad64-public gamepad64
         conan upload winsparkle/0.6.0@gamepad64/stable -r gamepad64-public --all
