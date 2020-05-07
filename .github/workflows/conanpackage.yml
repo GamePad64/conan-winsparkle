@@ -33,4 +33,8 @@ jobs:
         conan profile update settings.arch=${{ matrix.arch }} default
         conan profile update settings.compiler.runtime=${{ matrix.compiler_runtime }} default
         conan remote add -f bincrafters https://api.bintray.com/conan/bincrafters/public-conan
+        conan remote add -f gamepad64-public https://api.bintray.com/conan/gamepad64/public-conan
         conan create --build missing --build cascade . gamepad64/stable
+    - name: Upload package to Bintray
+      run: |
+        conan upload winsparkle/0.6.0@gamepad64/stable -r gamepad64-public --all
