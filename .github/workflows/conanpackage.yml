@@ -12,7 +12,10 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-
+    strategy:
+      matrix:
+        compiler_runtime: [MD, MDd, MT, MTd]
+        arch: [x86, x86_64]
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python 3.8
@@ -27,5 +30,7 @@ jobs:
     - name: Build Conan package
       run: |
         conan profile new --detect --force default
+        conan profile update settings.arch=${{ matrix.arch }} default
+        conan profile update settings.compiler.runtime=${{ matrix.compiler_runtime }} default
         conan remote add -f bincrafters https://api.bintray.com/conan/bincrafters/public-conan
         conan create --build missing --build cascade . gamepad64/stable
