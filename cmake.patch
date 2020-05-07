@@ -1,0 +1,142 @@
+diff --git a/cmake/CMakeLists.txt b/cmake/CMakeLists.txt
+index 6d6f7fa..8610c35 100644
+--- a/cmake/CMakeLists.txt
++++ b/cmake/CMakeLists.txt
+@@ -1,15 +1,9 @@
+-# CMAKE_BUILD_TYPE is required for PCHSupport.cmake
+-if(NOT DEFINED CMAKE_BUILD_TYPE)
+-  set(CMAKE_BUILD_TYPE "Release" CACHE STRING
+-    "Choose the type of build, options are: None(CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel.")
+-endif()
++cmake_minimum_required(VERSION 3.11)
+ 
+ project(WinSparkle)
+-
+-cmake_minimum_required(VERSION 2.8.12)
+-
+-if(NOT MINGW)
+-  message(FATAL_ERROR "Can be used only with MinGW")
++if(EXISTS "${CMAKE_BINARY_DIR}/conanbuildinfo.cmake")
++  include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
++  conan_basic_setup(TARGETS)
+ endif()
+ 
+ cmake_policy(SET CMP0022 NEW)
+@@ -35,28 +29,33 @@ set(INCLUDE_INSTALL_DIR "include")
+ set(CONFIG_INSTALL_DIR "${LIB_INSTALL_DIR}/cmake/${PROJECT_NAME}")
+ set(CMAKE_DEBUG_POSTFIX "d")
+ 
+-set(EXPAT_INCLUDE_DIRS "${ROOT_DIR}/3rdparty/expat/lib")
+-
+-# bundled expat
+-add_subdirectory(expat)
++add_library(expat INTERFACE)
++if(TARGET CONAN_PKG::expat)
++  target_link_libraries(expat INTERFACE CONAN_PKG::expat)
++else()
++  set(EXPAT_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/3rdparty/expat/lib")
++endif()
+ 
+-# bundled wxWidgets
+-add_subdirectory(wxWidgets)
++  # bundled expat
++find_package(OpenSSL)
++find_package(PNG)
++find_package(wxWidgets COMPONENTS net core base)
+ 
+ # WinSparkle
+ set(SOURCE_DIR ${ROOT_DIR}/src)
+ 
+ include_directories(${ROOT_DIR}/include)
+-include_directories(${EXPAT_INCLUDE_DIRS})
+-include_directories(${wxWidgets_INCLUDE_DIRS})
+ 
+-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
++set(CMAKE_CXX_STANDARD 11)
++set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ 
+ add_definitions(
+   -DWINVER=0x0600
++  -D_WIN32_WINNT=0x0600
++  -DWIN32_LEAN_AND_MEAN
+   -DNTDDI_VERSION=0x06000000
+   -DBUILDING_WIN_SPARKLE
+-  -DXML_STATIC
++  -D_CRT_SECURE_NO_WARNINGS
+   -DUNICODE -D_UNICODE)
+ 
+ set(SOURCES
+@@ -86,9 +85,19 @@ foreach(RESOURCE ${RESOURCES})
+                              -o ${CMAKE_CURRENT_BINARY_DIR}/${RESOURCE}.o)
+ endforeach()
+ 
+-add_library(${PROJECT_NAME} SHARED ${SOURCES} $<TARGET_OBJECTS:wxWidgets> $<TARGET_OBJECTS:expat>)
++add_library(${PROJECT_NAME} SHARED ${SOURCES} ${PUBLIC_HEADERS})
++
++set_target_properties(${PROJECT_NAME} PROPERTIES INTERPROCEDURAL_OPTIMIZATION ON)
++
++target_link_libraries(${PROJECT_NAME} PRIVATE expat)
++target_link_libraries(${PROJECT_NAME} PRIVATE OpenSSL::Crypto OpenSSL::SSL)
++target_link_libraries(${PROJECT_NAME} PRIVATE PNG::PNG)
++target_link_libraries(${PROJECT_NAME} PRIVATE wininet version rpcrt4 comctl32 crypt32 ws2_32)
+ 
+-target_link_libraries(${PROJECT_NAME} wininet version rpcrt4 comctl32 crypt32)
++target_link_libraries(${PROJECT_NAME} PRIVATE ${wxWidgets_LIBRARIES})
++target_include_directories(${PROJECT_NAME} PRIVATE ${wxWidgets_INCLUDE_DIRS})
++target_compile_definitions(${PROJECT_NAME} PRIVATE ${wxWidgets_DEFINITIONS})
++target_compile_definitions(${PROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=2>)
+ 
+ set_target_properties(${PROJECT_NAME} PROPERTIES
+                       VERSION ${LIB_MAJOR_VERSION}.${LIB_MINOR_VERSION}.${LIB_PATCH_VERSION}
+@@ -100,7 +109,8 @@ install(TARGETS ${PROJECT_NAME} EXPORT ${PROJECT_NAME}-export
+         LIBRARY DESTINATION ${LIB_INSTALL_DIR}
+         RUNTIME DESTINATION ${BIN_INSTALL_DIR}
+         ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+-        PUBLIC_HEADER DESTINATION "${INCLUDE_INSTALL_DIR}" INCLUDES DESTINATION "${INCLUDE_INSTALL_DIR}")
++        PUBLIC_HEADER DESTINATION "${INCLUDE_INSTALL_DIR}"
++        INCLUDES DESTINATION "${INCLUDE_INSTALL_DIR}")
+ 
+ # cmake-modules
+ include(CMakePackageConfigHelpers)
+diff --git a/include/winsparkle.h b/include/winsparkle.h
+index 360cdd4..7cb6c54 100644
+--- a/include/winsparkle.h
++++ b/include/winsparkle.h
+@@ -31,7 +31,11 @@
+ #include "winsparkle-version.h"
+ 
+ #if !defined(BUILDING_WIN_SPARKLE) && defined(_MSC_VER)
+-#pragma comment(lib, "WinSparkle.lib")
++    #ifndef _DEBUG
++        #pragma comment(lib, "WinSparkle.lib")
++    #else
++        #pragma comment(lib, "WinSparkled.lib")
++    #endif
+ #endif
+ 
+ #ifdef __cplusplus
+diff --git a/src/signatureverifier.h b/src/signatureverifier.h
+index 980ea8a..270f8b8 100644
+--- a/src/signatureverifier.h
++++ b/src/signatureverifier.h
+@@ -26,7 +26,7 @@
+ #ifndef _signatureverifier_h_
+ #define _signatureverifier_h_
+ 
+-#include <exception>
++#include <stdexcept>
+ #include <string>
+ 
+ namespace winsparkle
+diff --git a/src/updatedownloader.cpp b/src/updatedownloader.cpp
+index cf05a9f..e62907d 100644
+--- a/src/updatedownloader.cpp
++++ b/src/updatedownloader.cpp
+@@ -35,6 +35,7 @@
+ 
+ #include <sstream>
+ #include <rpc.h>
++#include <shellapi.h>
+ #include <time.h>
+ 
+ namespace winsparkle
