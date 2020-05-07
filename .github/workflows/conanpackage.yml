@@ -28,4 +28,4 @@ jobs:
       run: |
         conan profile new --detect --force default
         conan remote add -f bincrafters https://api.bintray.com/conan/bincrafters/public-conan
-        conan create . gamepad64/stable
+        conan create --build missing --build cascade . gamepad64/stable
